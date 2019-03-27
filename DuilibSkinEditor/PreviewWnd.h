@@ -45,5 +45,6 @@ public:
 	DECLARE_MESSAGE_MAP()
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
+	afx_msg LRESULT OnSelectControl(WPARAM wParam, LPARAM lParam);
 };
 

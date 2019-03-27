@@ -29,8 +29,9 @@ BEGIN_MESSAGE_MAP(CMainFrame, CMDIFrameWndEx)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_CAPTION_BAR, &CMainFrame::OnUpdateViewCaptionBar)
 	ON_COMMAND(ID_VIEW_SETTINGS, &CMainFrame::OnViewSettings)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SETTINGS, &CMainFrame::OnUpdateViewSettings)
-	ON_UPDATE_COMMAND_UI(ID_EDIT_FINDREPLACE, &CMainFrame::OnUpdateEditFindReplace)
-	ON_COMMAND(ID_EDIT_FINDREPLACE, &CMainFrame::OnFindReplace)
+// 	ON_UPDATE_COMMAND_UI(ID_EDIT_FINDREPLACE, &CMainFrame::OnUpdateEditFindReplace)
+// 	ON_COMMAND(ID_EDIT_FINDREPLACE, &CMainFrame::OnFindReplace)
+	ON_MESSAGE(WM_FINDREPLACE, &CMainFrame::OnFindReplace)
 	ON_COMMAND(ID_TOOLS_OPTIONS, &CMainFrame::OnOptions)
 	ON_WM_SETTINGCHANGE()
 	ON_MESSAGE(WM_REFRESH_PREVIEW, &CMainFrame::OnRefreshPreview)
@@ -125,11 +126,11 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	EnableAutoHidePanes(CBRS_ALIGN_ANY);
 
 	// 创建标题栏:
-	if (!CreateCaptionBar())
-	{
-		TRACE0("未能创建标题栏\n");
-		return -1;      // 未能创建
-	}
+// 	if (!CreateCaptionBar())
+// 	{
+// 		TRACE0("未能创建标题栏\n");
+// 		return -1;      // 未能创建
+// 	}
 
 	// 创建停靠窗口
 	if (!CreateDockingWindows())
@@ -138,10 +139,16 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		return -1;
 	}
 
-	m_wndOutput.EnableDocking(CBRS_ALIGN_ANY);
-	DockPane(&m_wndOutput);
-	m_wndProperties.EnableDocking(CBRS_ALIGN_ANY);
-	DockPane(&m_wndProperties);
+	if (IsWindow(m_wndOutput.GetSafeHwnd()))
+	{
+		m_wndOutput.EnableDocking(CBRS_ALIGN_ANY);
+		DockPane(&m_wndOutput);
+	}
+	if (IsWindow(m_wndProperties.GetSafeHwnd()))
+	{
+		m_wndProperties.EnableDocking(CBRS_ALIGN_ANY);
+		DockPane(&m_wndProperties);
+	}
 	m_wndPreView.EnableDocking(CBRS_ALIGN_ANY);
 	DockPane(&m_wndPreView);
 
@@ -210,24 +217,24 @@ BOOL CMainFrame::CreateDockingWindows()
 {
 	BOOL bNameValid;
 	// 创建输出窗口
-	CString strOutputWnd;
-	bNameValid = strOutputWnd.LoadString(IDS_OUTPUT_WND);
-	ASSERT(bNameValid);
-	if (!m_wndOutput.Create(strOutputWnd, this, CRect(0, 0, 100, 100), TRUE, ID_VIEW_OUTPUTWND, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CBRS_BOTTOM | CBRS_FLOAT_MULTI))
-	{
-		TRACE0("未能创建输出窗口\n");
-		return FALSE; // 未能创建
-	}
+// 	CString strOutputWnd;
+// 	bNameValid = strOutputWnd.LoadString(IDS_OUTPUT_WND);
+// 	ASSERT(bNameValid);
+// 	if (!m_wndOutput.Create(strOutputWnd, this, CRect(0, 0, 100, 100), TRUE, ID_VIEW_OUTPUTWND, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CBRS_BOTTOM | CBRS_FLOAT_MULTI))
+// 	{
+// 		TRACE0("未能创建输出窗口\n");
+// 		return FALSE; // 未能创建
+// 	}
 
 	// 创建属性窗口
-	CString strPropertiesWnd;
-	bNameValid = strPropertiesWnd.LoadString(IDS_PROPERTIES_WND);
-	ASSERT(bNameValid);
-	if (!m_wndProperties.Create(strPropertiesWnd, this, CRect(0, 0, 200, 200), TRUE, ID_VIEW_PROPERTIESWND, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CBRS_RIGHT | CBRS_FLOAT_MULTI))
-	{
-		TRACE0("未能创建“属性”窗口\n");
-		return FALSE; // 未能创建
-	}
+// 	CString strPropertiesWnd;
+// 	bNameValid = strPropertiesWnd.LoadString(IDS_PROPERTIES_WND);
+// 	ASSERT(bNameValid);
+// 	if (!m_wndProperties.Create(strPropertiesWnd, this, CRect(0, 0, 200, 200), TRUE, ID_VIEW_PROPERTIESWND, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CBRS_RIGHT | CBRS_FLOAT_MULTI))
+// 	{
+// 		TRACE0("未能创建“属性”窗口\n");
+// 		return FALSE; // 未能创建
+// 	}
 
 	// 创建预览窗口
 	CString strPreviewWnd;
@@ -423,10 +430,6 @@ void CMainFrame::OnUpdateViewCaptionBar(CCmdUI* pCmdUI)
 
 void CMainFrame::OnViewSettings()
 {
-	if (m_dlgSettings.IsWindowVisible())
-	{
-		return;
-	}
 	if (!::IsWindow(m_dlgSettings.GetSafeHwnd()))
 	{
 		m_dlgSettings.Create(CSettingsDlg::IDD, this);
@@ -447,20 +450,31 @@ void CMainFrame::OnUpdateEditFindReplace(CCmdUI* pCmdUI)
 
 void CMainFrame::OnFindReplace()
 {
-	if (m_dlgFindReplace.IsWindowVisible())
-	{
-		return;
-	}
 	if (!::IsWindow(m_dlgFindReplace.GetSafeHwnd()))
 	{
 		m_dlgFindReplace.Create(CFindReplaceDlg::IDD, this);
 		m_dlgFindReplace.CenterWindow();
 	}
-	m_dlgFindReplace.ShowWindow(SW_SHOW);
+	USHORT wState = GetKeyState(VK_F3);
+	if (wState & 0xFF00)
+	{
+		m_dlgFindReplace.OnBnClickedButtonFindnext();
+	}
+	else
+	{
+		m_dlgFindReplace.Show();
+	}
+}
+
+LRESULT CMainFrame::OnFindReplace(WPARAM wParam, LPARAM lParam)
+{
+	OnFindReplace();
+	return 0;
 }
 
 void CMainFrame::OnOptions()
 {
+	AfxMessageBox(_T("OnOptions"));
 }
 
 BOOL CMainFrame::LoadFrame(UINT nIDResource, DWORD dwDefaultStyle, CWnd* pParentWnd, CCreateContext* pContext) 

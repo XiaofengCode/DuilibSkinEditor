@@ -14,6 +14,7 @@ CPreviewWnd::~CPreviewWnd(void)
 BEGIN_MESSAGE_MAP(CPreviewWnd, CDockablePane)
 	ON_WM_CREATE()
 	ON_WM_ERASEBKGND()
+	ON_MESSAGE(0x2222, OnSelectControl)
 END_MESSAGE_MAP()
 
 
@@ -51,6 +52,11 @@ void CPreviewWnd::Refresh()
 		CDC* pDc = GetDC();
 		pDc->DrawText(_T("Load skin failed!"), rect, 0);
 	}
+	else
+	{
+		OnEraseBkgnd(GetDC());
+	}
+	pV->PostMessage(0x2223);
 }
 
 BOOL CPreviewWnd::OnEraseBkgnd(CDC* pDC)
@@ -68,4 +74,24 @@ BOOL CPreviewWnd::OnEraseBkgnd(CDC* pDC)
 	pDC->SelectObject(pOldBrush);
 	return TRUE;
 	return CDockablePane::OnEraseBkgnd(pDC);
+}
+
+LRESULT CPreviewWnd::OnSelectControl(WPARAM wParam, LPARAM lParam)
+{
+	CMDIFrameWnd  *pFrame = (CMDIFrameWnd*)theApp.GetMainWnd();
+	if (!pFrame)
+	{
+		return 0;
+	}
+	CMDIChildWnd  *pChild = (CMDIChildWnd   *)pFrame->GetActiveFrame();   
+	if (!pChild)
+	{
+		return 0;
+	}
+	CView   *pV = (CView*)pChild->GetActiveView();
+	if (!pV)
+	{
+		return 0;
+	}
+	return pV->SendMessage(0x2222, wParam, lParam);
 }

@@ -70,7 +70,7 @@ public:
 	BOOL sci_GetReadOnly();
 	//获取范围内的字符,返回字符的长度
 	int  sci_GetTextRange(int cpMin, int cpMax, CStringA &pTextRange);
-	SciDll_void sci_GetStyledText(int cpMin, int cpMax, CString &pText);
+	SciDll_void sci_GetStyledText(int cpMin, int cpMax, CStringA &pText);
 	//设置文档缓冲区大小, 使创建的文档不会小于当前的文档
 	SciDll_void sci_Allocate(int bytes);
 	//在光标位置插入字符串
@@ -201,7 +201,7 @@ public:
 	int  sci_PositionFromLine(int line);
 	int  sci_GetLineEndPosition(int line);
 	int  sci_LineLength(int line);
-	SciDll_void sci_GetSelText(CString &Text);
+	SciDll_void sci_GetSelText(CStringA &Text);
 
 	//原来的函数没搞明白,我实现的函数,返回当前行号和当前行的字符内容,
 	int  sci_GetCurLine(CStringA &Text);
@@ -917,7 +917,7 @@ inline int CSciWnd::sci_GetTextRange(int cpMin, int cpMax, CStringA &pTextRange)
 	return len;
 }
 
-inline SciDll_void CSciWnd::sci_GetStyledText(int cpMin, int cpMax, CString &pText)
+inline SciDll_void CSciWnd::sci_GetStyledText(int cpMin, int cpMax, CStringA &pText)
 {
 	Sci_TextRange tr;
 	tr.chrg.cpMin = cpMin;
@@ -1359,7 +1359,7 @@ inline int  CSciWnd::sci_LineLength(int line)
 	return execute(SCI_LINELENGTH,line,0);
 }
 
-inline SciDll_void CSciWnd::sci_GetSelText(CString &Text)
+inline SciDll_void CSciWnd::sci_GetSelText(CStringA &Text)
 {
 	int nRet = -1;
 	nRet = execute(SCI_GETSELTEXT,0,0);

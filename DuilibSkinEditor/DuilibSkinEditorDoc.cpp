@@ -103,15 +103,28 @@ void CDuilibSkinEditorDoc::Serialize(CArchive& ar)
 			}
 			pView->OnFileSave(ar);
 		}
-// 		CDuilibSkinEditorView* pView = (CDuilibSkinEditorView*)GetRoutingView();
-// 		if (pView)
-// 		{
-// 			pView->OnFileSave(ar);
-// 		}
 	}
 	else
 	{
 		// TODO: 在此添加加载代码
+	}
+}
+
+void CDuilibSkinEditorDoc::OnDocumentEvent(DocumentEvent deEvent)
+{
+	__super::OnDocumentEvent(deEvent);
+	if (deEvent == CDocument::onAfterSaveDocument)
+	{
+		POSITION posView = GetFirstViewPosition();
+		if (posView)
+		{
+			CDuilibSkinEditorView* pView = (CDuilibSkinEditorView*)GetNextView(posView);
+			if (!pView)
+			{
+				return;
+			}
+			pView->OnPostFileSave();
+		}
 	}
 }
 

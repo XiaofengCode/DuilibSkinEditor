@@ -35,6 +35,7 @@ public:
 // 操作
 public:
 	void OnFileSave(CArchive& ar);
+	void OnPostFileSave();
 
 // 重写
 public:
@@ -58,6 +59,8 @@ protected:
 	CDuiDesignerProperty m_duiProp;
 	CString m_strLastCtrlName;
 	bool m_bAutoCtrl;
+	struct _stat64 m_statFile;
+	//HANDLE m_hFileChangeEvent;
 
 // 生成的消息映射函数
 protected:
@@ -73,10 +76,16 @@ public:
 	afx_msg void OnUpdateEditCut(CCmdUI *pCmdUI);
 	afx_msg void OnEditCopy();
 	afx_msg void OnUpdateEditCopy(CCmdUI *pCmdUI);
+	afx_msg void OnEditFindRepalce();
+	afx_msg void OnUpdateEditFindRepalce(CCmdUI *pCmdUI);
 	afx_msg void OnEditPaste();
 	afx_msg void OnUpdateEditPaste(CCmdUI *pCmdUI);
 	afx_msg void OnEditUndo();
 	afx_msg void OnUpdateEditUndo(CCmdUI *pCmdUI);
+	afx_msg void OnEditRedo();
+	afx_msg void OnUpdateEditRedo(CCmdUI *pCmdUI);
+	afx_msg LRESULT OnSelectControl(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnSetEditFocus(WPARAM wParam, LPARAM lParam);
 	virtual BOOL OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResult);
 
 	void AutoCompleteTag();
@@ -94,6 +103,9 @@ protected:
 public:
 	afx_msg void OnSetFocus(CWnd* pOldWnd);
 };
+
+BOOL CreateString_InitWithUTF8Text(CString& str, char* pUTF8Text);
+char* CreateUTF8TextInitWithString(CString strValue);
 
 #ifndef _DEBUG  // DuilibSkinEditorView.cpp 中的调试版本
 inline CDuilibSkinEditorDoc* CDuilibSkinEditorView::GetDocument() const

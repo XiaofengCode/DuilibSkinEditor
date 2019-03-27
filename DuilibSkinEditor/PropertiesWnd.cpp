@@ -186,6 +186,10 @@ void CPropertiesWnd::InitPropList()
 	pProp->EnableSpinControl(TRUE, 50, 200);
 	pSize->AddSubItem(pProp);
 
+	pProp = new CMFCPropertyGridProperty( _T("²âÊÔ"), (_variant_t) 160l, _T("²âÊÔ"));
+	pProp->EnableSpinControl(TRUE, 50, 200);
+	pSize->AddSubItem(pProp);
+
 	m_wndPropList.AddProperty(pSize);
 
 	CMFCPropertyGridProperty* pGroup2 = new CMFCPropertyGridProperty(_T("×ÖÌå"));

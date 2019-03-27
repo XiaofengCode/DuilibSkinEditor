@@ -31,16 +31,22 @@ BEGIN_MESSAGE_MAP(CDuilibSkinEditorView, CView)
 	ON_UPDATE_COMMAND_UI(ID_EDIT_CUT, &CDuilibSkinEditorView::OnUpdateEditCut)
 	ON_COMMAND(ID_EDIT_COPY, &CDuilibSkinEditorView::OnEditCopy)
 	ON_UPDATE_COMMAND_UI(ID_EDIT_COPY, &CDuilibSkinEditorView::OnUpdateEditCopy)
+	ON_COMMAND(ID_EDIT_FINDREPLACE, &CDuilibSkinEditorView::OnEditFindRepalce)
+	ON_UPDATE_COMMAND_UI(ID_EDIT_FINDREPLACE, &CDuilibSkinEditorView::OnUpdateEditFindRepalce)
 	ON_COMMAND(ID_EDIT_PASTE, &CDuilibSkinEditorView::OnEditPaste)
 	ON_UPDATE_COMMAND_UI(ID_EDIT_PASTE, &CDuilibSkinEditorView::OnUpdateEditPaste)
 	ON_COMMAND(ID_EDIT_UNDO, &CDuilibSkinEditorView::OnEditUndo)
 	ON_UPDATE_COMMAND_UI(ID_EDIT_UNDO, &CDuilibSkinEditorView::OnUpdateEditUndo)
+	ON_COMMAND(ID_EDIT_REDO, &CDuilibSkinEditorView::OnEditRedo)
+	ON_UPDATE_COMMAND_UI(ID_EDIT_REDO, &CDuilibSkinEditorView::OnUpdateEditRedo)
 	ON_WM_CONTEXTMENU()
 	ON_WM_RBUTTONUP()
 	ON_WM_SIZE()
 	ON_WM_TIMER()
 	ON_MESSAGE(WM_ATTIBUTE_VALUE_AUTOSEL, &CDuilibSkinEditorView::OnAttibuteValueAutoSel)
 	ON_WM_SETFOCUS()
+	ON_MESSAGE(0x2222, OnSelectControl)
+	ON_MESSAGE(0x2223, OnSetEditFocus)
 END_MESSAGE_MAP()
 
 // CDuilibSkinEditorView 构造/析构
@@ -48,11 +54,11 @@ END_MESSAGE_MAP()
 CDuilibSkinEditorView::CDuilibSkinEditorView()
 {
 	// TODO: 在此处添加构造代码
-
 }
 
 CDuilibSkinEditorView::~CDuilibSkinEditorView()
 {
+
 }
 
 BOOL CDuilibSkinEditorView::PreCreateWindow(CREATESTRUCT& cs)
@@ -163,9 +169,13 @@ void CDuilibSkinEditorView::OnInitialUpdate()
 	// 	xml_string_writer writer;
 	// 	writer.pSciWnd = &sci;
 	// 	m_pDoc->m_doc.child(_T("Window")).print(writer);
+	
 	if (m_pDocument->GetPathName().GetLength())
 	{
-		m_sci.LoadFile(m_pDocument->GetPathName());
+		if (m_sci.LoadFile(m_pDocument->GetPathName()))
+		{
+			_tstat64(m_pDocument->GetPathName(), &m_statFile);
+		}
 	}
 	else
 	{
@@ -174,6 +184,7 @@ void CDuilibSkinEditorView::OnInitialUpdate()
 	m_sci.SetSavePoint();
 	m_sci.sci_EmptyUndoBuffer();
 	SetTimer(1, 100, NULL);
+	SetTimer(2, 2000, NULL);
 }
 
 CString CDuilibSkinEditorView::GetCurNodeName()
@@ -444,7 +455,6 @@ void CDuilibSkinEditorView::AutoCompleteAttibute(CString strAttrName)
 	}
 }
 
-
 void CDuilibSkinEditorView::AutoCompleteAttibuteValue()
 {
 	
@@ -562,6 +572,46 @@ void CDuilibSkinEditorView::OnTimer(UINT_PTR nIDEvent)
 		m_sci.SetFocus();
 		return;
 	}
+	else if (nIDEvent == 2)
+	{
+		if (m_pDocument->GetPathName().GetLength() == 0)
+		{
+			return;
+		}
+		static long lProcessing = 0;
+		static bool bProcessing = false;
+		if (InterlockedExchange(&lProcessing, 1))
+		{
+			return;
+		}
+		struct _stat64 statFile;
+		if (_tstat64(m_pDocument->GetPathName(), &statFile) == 0)
+		{
+			if (statFile.st_mtime != m_statFile.st_mtime)
+			{
+				if (AfxMessageBox(m_pDocument->GetPathName() + _T("已经发生改变，是否重新加载？"), MB_YESNO) != IDYES)
+				{
+					m_statFile = statFile;
+					InterlockedExchange(&lProcessing, 0);
+					return;
+				}
+				if (m_sci.LoadFile(m_pDocument->GetPathName()))
+				{
+					m_statFile = statFile;
+				}
+			}
+		}
+		else
+		{
+			if (AfxMessageBox(m_pDocument->GetPathName() + _T("已经不存在，是否关闭？"), MB_YESNO) != IDYES)
+			{
+				InterlockedExchange(&lProcessing, 0);
+				this->CloseWindow();
+				return;
+			}
+		}
+		InterlockedExchange(&lProcessing, 0);
+	}
 
 	CView::OnTimer(nIDEvent);
 }
@@ -603,6 +653,16 @@ void CDuilibSkinEditorView::OnUpdateEditCopy(CCmdUI *pCmdUI)
 	pCmdUI->Enable(m_sci.sci_CanCopy());
 }
 
+void CDuilibSkinEditorView::OnEditFindRepalce()
+{
+	theApp.GetMainWnd()->PostMessage(WM_FINDREPLACE);
+}
+
+void CDuilibSkinEditorView::OnUpdateEditFindRepalce(CCmdUI *pCmdUI)
+{
+	pCmdUI->Enable();
+}
+
 void CDuilibSkinEditorView::OnEditPaste()
 {
 	if (!IsWindow(m_sci))
@@ -637,6 +697,96 @@ void CDuilibSkinEditorView::OnUpdateEditUndo(CCmdUI *pCmdUI)
 		return;
 	}
 	pCmdUI->Enable(m_sci.sci_CanUndo());
+}
+
+void CDuilibSkinEditorView::OnEditRedo()
+{
+	if (!IsWindow(m_sci))
+	{
+		return;
+	}
+	m_sci.sci_Redo();
+}
+
+void CDuilibSkinEditorView::OnUpdateEditRedo(CCmdUI *pCmdUI)
+{
+	if (!IsWindow(m_sci))
+	{
+		return;
+	}
+	pCmdUI->Enable(m_sci.sci_CanRedo());
+}
+
+LRESULT CDuilibSkinEditorView::OnSelectControl(WPARAM wParam, LPARAM lParam)
+{
+	LPCTSTR lpszFileName = (LPCTSTR)wParam;
+	if (!lpszFileName || !lpszFileName[0])
+	{
+		return 0;
+	}
+	if (m_pDocument->GetPathName().Find(lpszFileName) < 0)
+	{
+		return 0;
+	}
+	CStringA strTextA;
+	m_sci.sci_GetTextAll(strTextA);
+	CString strTextT;
+	CreateString_InitWithUTF8Text(strTextT, strTextA.GetBuffer(0));
+	const char* pstr = CreateUTF8TextInitWithString(strTextT.Left(lParam));
+	int nLen = strlen(pstr);
+	delete[] pstr;
+	//m_sci.sci_SetCurrentPos(strTextAPre.getp);
+	int nTagBegin = nLen - 1;
+	int nTagEnd = -1;
+	int nStatus = 0;
+	pstr = strTextA;
+	for (LPCSTR p = pstr + nTagBegin; *p; p++)
+	{
+		switch (*p)
+		{
+		case '<':
+			if (p[1] == '/')
+			{
+				nStatus--;
+			}
+			else
+			{
+				nStatus++;
+			}
+			break;
+		case '/':
+			break;
+		case '>':
+			if (p[- 1] == '/')
+			{
+				nStatus--;
+			}
+			if (nStatus == 0)
+			{
+				nTagEnd = p - pstr + 1;
+			}
+			break;
+		}
+		if (nTagEnd != -1)
+		{
+			break;
+		}
+	}
+
+	m_sci.sci_SetSelectionStart(nTagBegin);
+	m_sci.sci_SetSelectionEnd(nTagEnd);
+	m_sci.sci_ScrollCaret();
+	return 0;
+}
+
+LRESULT CDuilibSkinEditorView::OnSetEditFocus(WPARAM wParam, LPARAM lParam)
+{
+	//AfxMessageBox(_T("1"));
+	Sleep(1);
+	m_sci.SetFocus();
+	//m_sci.BringWindowToTop();
+	//m_sci.SetForegroundWindow();
+	return 0;
 }
 
 BOOL CDuilibSkinEditorView::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResult)
@@ -753,9 +903,9 @@ BOOL CDuilibSkinEditorView::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pRes
 		break;
 	default:
 		{
-			CString sDbg;
-			sDbg.Format(_T("SCN:%d\n"), pMsg->nmhdr.code);
-			OutputDebugString(sDbg);
+// 			CString sDbg;
+// 			sDbg.Format(_T("SCN:%d\n"), pMsg->nmhdr.code);
+// 			OutputDebugString(sDbg);
 			m_sci.OnParentNotify(pMsg);
 		}
 		break;
@@ -1050,10 +1200,23 @@ void CDuilibSkinEditorView::OnFileSave(CArchive& ar)
 {
 	if (IsWindow(m_sci.m_hWnd))
 	{
+		KillTimer(2);
 		CStringA strText;
 		m_sci.sci_GetTextAll(strText);
 		ar.Write(strText.GetBuffer(), strText.GetLength());
+		//ar.GetFile()->Close();
+		//ar.Close();
 		m_sci.SetSavePoint();
+	}
+}
+
+void CDuilibSkinEditorView::OnPostFileSave()
+{
+	struct _stat64 statFile;
+	if (_tstat64(m_pDocument->GetPathName(), &statFile) == 0)
+	{
+		m_statFile = statFile;
+		SetTimer(2, 2000, NULL);
 	}
 }
 
