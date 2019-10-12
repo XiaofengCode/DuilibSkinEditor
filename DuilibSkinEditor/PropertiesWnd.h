@@ -28,11 +28,22 @@ public:
 		m_wndPropList.SetGroupNameFullWidth(bSet);
 	}
 
+	void ShowProperty(LPCTSTR lpszCtrlName, LPCTSTR lpszCurAttrs);
+	void SetPropValue(LPCTSTR lpszName, LPCTSTR lpszValue);
+
+	void OnThreadShowProperty();
 protected:
 	CFont m_fntPropList;
 	CComboBox m_wndObjectCombo;
 	CPropertiesToolBar m_wndToolBar;
 	CMFCPropertyGridCtrl m_wndPropList;
+
+	CDuiDesignerProperty m_duiProp;
+	CString	m_strCurCtrl;
+	CString	m_strCurAttrs;
+	CWinThread* m_pThreadShow;
+	bool		m_bQuit;
+	CEvent		m_evtChangedCtrl;
 
 // й╣ож
 public:
@@ -54,7 +65,22 @@ protected:
 
 	DECLARE_MESSAGE_MAP()
 
-	void InitPropList();
 	void SetPropListFont();
+	void ParseCurAttrs(CMapStringToString& mapAttrs);
+};
+
+
+#define ARGB(a,r,g,b)        ((COLORREF)(((BYTE)(r)|((WORD)((BYTE)(g))<<8))|(((DWORD)(BYTE)(b))<<16))|(((DWORD)(BYTE)(a))<<24))
+#define GetAValue(argb)      (LOBYTE((argb)>>24))
+
+class CMFCPropertyGridColor32Property : public CMFCPropertyGridColorProperty
+{
+public:
+	CMFCPropertyGridColor32Property(const CString& strName,const COLORREF& color,CPalette* pPalette=NULL,LPCTSTR lpszDescr=NULL,DWORD_PTR dwData=0);
+
+public:
+	virtual BOOL OnUpdateValue();
+	virtual void OnDrawValue(CDC* pDC, CRect rect);
+	virtual CString FormatProperty();
 };
 

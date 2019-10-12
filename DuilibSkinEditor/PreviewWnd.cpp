@@ -78,6 +78,11 @@ BOOL CPreviewWnd::OnEraseBkgnd(CDC* pDC)
 
 LRESULT CPreviewWnd::OnSelectControl(WPARAM wParam, LPARAM lParam)
 {
+	CString strFile((LPCTSTR)wParam);
+	if (strFile.GetLength() == 0)
+	{
+		return 0;
+	}
 	CMDIFrameWnd  *pFrame = (CMDIFrameWnd*)theApp.GetMainWnd();
 	if (!pFrame)
 	{
@@ -92,6 +97,48 @@ LRESULT CPreviewWnd::OnSelectControl(WPARAM wParam, LPARAM lParam)
 	if (!pV)
 	{
 		return 0;
+	}
+	CString strCurDoc = pV->GetDocument()->GetPathName();
+	if (strCurDoc.Right(strFile.GetLength()).CompareNoCase(strFile) != 0)
+	{
+		pV = NULL;
+		POSITION PosDocTemplate = theApp.GetFirstDocTemplatePosition();
+		if (PosDocTemplate)
+		{
+			CDocTemplate* pDocTemplate = theApp.GetNextDocTemplate( PosDocTemplate );
+			POSITION PosDoc = pDocTemplate->GetFirstDocPosition();
+			while(PosDoc)
+			{
+				CDocument* pDoc = pDocTemplate->GetNextDoc( PosDoc );
+				if (pDoc->GetPathName().Right(strFile.GetLength()).CompareNoCase(strFile) == 0)
+				{
+					POSITION PosView = pDoc->GetFirstViewPosition();
+					CView *pView = (CView *)pDoc->GetNextView(PosView);
+					CMDIChildWnd *pFram = (CMDIChildWnd *)pView->GetParentFrame();
+					pFram->MDIActivate();
+					pV = pView;
+				}
+			}
+		}
+		if (!pV)
+		{
+			int nPos = strCurDoc.ReverseFind('\\');
+			if (nPos > 0)
+			{
+				strFile = strCurDoc.Left(nPos + 1) + strFile;
+			}
+
+			CDocument* pDoc = theApp.OpenDocumentFile(strFile);
+			if (!pDoc)
+			{
+				return 0;
+			}
+			POSITION PosView = pDoc->GetFirstViewPosition();
+			CView *pView = (CView *)pDoc->GetNextView(PosView);
+			CMDIChildWnd *pFram = (CMDIChildWnd *)pView->GetParentFrame();
+			pFram->MDIActivate();
+			pV = pView;
+		}
 	}
 	return pV->SendMessage(0x2222, wParam, lParam);
 }

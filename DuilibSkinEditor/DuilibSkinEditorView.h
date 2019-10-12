@@ -6,6 +6,7 @@
 
 #include "SciWnd.h"
 #include "DuiDesignerProperty.h"
+#include "xmlMatchedTagsHighlighter.h"
 
 enum AttrType
 {
@@ -60,6 +61,7 @@ protected:
 	CString m_strLastCtrlName;
 	bool m_bAutoCtrl;
 	struct _stat64 m_statFile;
+	XmlMatchedTagsHighlighter::XmlMatchedTagsPos m_posTagLastSel;
 	//HANDLE m_hFileChangeEvent;
 
 // 生成的消息映射函数

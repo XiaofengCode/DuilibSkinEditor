@@ -9,8 +9,9 @@
 #include "SettingsDlg.h"
 #include "FindReplaceDlg.h"
 
-#define WM_REFRESH_PREVIEW	(WM_USER + 0x5000)
-#define WM_FINDREPLACE		(WM_USER + 0x5001)
+#define WM_REFRESH_PREVIEW		(WM_USER + 0x5000)
+#define WM_FINDREPLACE			(WM_USER + 0x5001)
+#define WM_REFRESH_PROPERTY		(WM_USER + 0x5002)
 class CMainFrame : public CMDIFrameWndEx
 {
 	DECLARE_DYNAMIC(CMainFrame)
@@ -65,6 +66,7 @@ protected:
 	afx_msg void OnOptions();
 	afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
 	afx_msg LRESULT OnRefreshPreview(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnRefreshProperty(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnFindReplace(WPARAM wParam, LPARAM lParam);
 	DECLARE_MESSAGE_MAP()
 

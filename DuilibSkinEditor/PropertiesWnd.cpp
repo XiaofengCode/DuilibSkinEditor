@@ -5,6 +5,8 @@
 #include "Resource.h"
 #include "MainFrm.h"
 #include "DuilibSkinEditor.h"
+#include <GdiPlus.h>
+using namespace Gdiplus;
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -17,10 +19,15 @@ static char THIS_FILE[]=__FILE__;
 
 CPropertiesWnd::CPropertiesWnd()
 {
+	m_pThreadShow = nullptr;
+	m_duiProp.LoadPropertyFile();
 }
 
 CPropertiesWnd::~CPropertiesWnd()
 {
+	m_bQuit = true;
+	m_evtChangedCtrl.SetEvent();
+	WaitForSingleObject(m_pThreadShow, INFINITE);
 }
 
 BEGIN_MESSAGE_MAP(CPropertiesWnd, CDockablePane)
@@ -61,6 +68,161 @@ void CPropertiesWnd::AdjustLayout()
 	m_wndPropList.SetWindowPos(NULL, rectClient.left, rectClient.top + cyCmb + cyTlb, rectClient.Width(), rectClient.Height() -(cyCmb+cyTlb), SWP_NOACTIVATE | SWP_NOZORDER);
 }
 
+UINT AFX_CDECL ThreadShowProperty(LPVOID lpContext)
+{
+	CPropertiesWnd* pThis = (CPropertiesWnd*)lpContext;
+	pThis->OnThreadShowProperty();
+	return 0;
+}
+
+void CPropertiesWnd::ShowProperty(LPCTSTR lpszCtrlName, LPCTSTR lpszCurAttrs)
+{
+	SetPropListFont();
+	m_wndPropList.EnableHeaderCtrl(FALSE);
+	m_wndPropList.EnableDescriptionArea();
+	m_wndPropList.SetVSDotNetLook();
+	m_wndPropList.MarkModifiedProperties();
+	m_strCurCtrl = lpszCtrlName;
+	m_strCurAttrs = lpszCurAttrs;
+	if (m_pThreadShow)
+	{
+		m_evtChangedCtrl.SetEvent();
+	}
+	else
+	{
+		m_bQuit = false;
+		m_evtChangedCtrl.ResetEvent();
+		m_pThreadShow = AfxBeginThread(ThreadShowProperty, (LPVOID)this);
+	}
+}
+
+void CPropertiesWnd::OnThreadShowProperty()
+{
+	while (1)
+	{
+_restart:
+		//解析属性
+		CMapStringToString mapAttrs;
+		if (m_bQuit)
+		{
+			return;
+		}
+		ParseCurAttrs(mapAttrs);
+		m_wndPropList.RemoveAll();
+		while (m_strCurCtrl.GetLength())
+		{
+			xml_node node = m_duiProp.FindControl(m_strCurCtrl);
+			for (xml_node nodeAttr = node.first_child(); nodeAttr; nodeAttr=nodeAttr.next_sibling())
+			{
+				if (WaitForSingleObject(m_evtChangedCtrl, 0) == WAIT_OBJECT_0)
+				{
+					goto _restart;
+				}
+				bool bExist = false;
+				LPCTSTR pstrName = nodeAttr.attribute(_T("name")).value();
+				LPCTSTR pstrType = nodeAttr.attribute(_T("type")).value();
+				LPCTSTR pstrComment = nodeAttr.attribute(_T("comment")).value();
+				CString strValue;
+				LPCTSTR pstrDefault = NULL;
+				bool bModify = false;
+				if (mapAttrs.Lookup(pstrName, strValue))
+				{
+					bModify = true;
+					pstrDefault = strValue;
+				}
+				else
+				{
+					pstrDefault = nodeAttr.attribute(_T("default")).value();
+				}
+				CMFCPropertyGridProperty* pProp = nullptr;
+				if (_tcsicmp(pstrType, _T("INT")) == 0)
+				{
+					pProp = new CMFCPropertyGridProperty(pstrName, (_variant_t)_ttoi(pstrDefault), pstrComment);
+					pProp->EnableSpinControl(TRUE);
+				}
+				else if(_tcsicmp(pstrType, _T("STRING")) == 0)
+				{
+					pProp = new CMFCPropertyGridProperty(pstrName, (_variant_t)pstrDefault, pstrComment);
+				}
+				else if(_tcsicmp(pstrType, _T("BOOL")) == 0)
+				{
+					pProp = new CMFCPropertyGridProperty(pstrName, (_variant_t)(_tcsicmp(pstrDefault, _T("true")) == 0), pstrComment);
+				}
+				else if(_tcsicmp(pstrType, _T("RECT")) == 0)
+				{
+					pProp = new CMFCPropertyGridProperty(pstrName, 0, TRUE);
+					pProp->SetDescription(pstrComment);
+
+					LPTSTR pstr = NULL;
+					long nValue = _tcstol(pstrDefault, &pstr, 10);
+					CMFCPropertyGridProperty* pPropSub = new CMFCPropertyGridProperty(_T("left"), COleVariant(nValue), _T("left"));
+					pProp->EnableSpinControl(TRUE);
+					pProp->AddSubItem(pPropSub);
+
+
+					nValue = _tcstol(pstr + 1, &pstr, 10);
+					pPropSub = new CMFCPropertyGridProperty(_T("top"), COleVariant(nValue), _T("top"));
+					pProp->EnableSpinControl(TRUE);
+					pProp->AddSubItem(pPropSub);
+
+					nValue = _tcstol(pstr + 1, &pstr, 10);
+					pPropSub = new CMFCPropertyGridProperty(_T("right"), COleVariant(nValue), _T("right"));
+					pProp->EnableSpinControl(TRUE);
+					pProp->AddSubItem(pPropSub);
+
+					nValue = _tcstol(pstr + 1, &pstr, 10);
+					pPropSub = new CMFCPropertyGridProperty(_T("bottom"), COleVariant(nValue), _T("bottom"));
+					pProp->EnableSpinControl(TRUE);
+					pProp->AddSubItem(pPropSub);
+				}
+				else if(_tcsicmp(pstrType, _T("DWORD")) == 0)
+				{
+					PTSTR p;
+					if (pstrDefault[0] == '#')
+					{
+						pstrDefault++;
+					}
+					DWORD dw = _tcstoul(pstrDefault, &p, 16);
+					CMFCPropertyGridColor32Property* pColorProp = new CMFCPropertyGridColor32Property(pstrName, dw, NULL, pstrComment);
+					pColorProp->EnableOtherButton(_T("其他..."));
+					pColorProp->EnableAutomaticButton(_T("默认"), 0);
+					pColorProp->AllowEdit();
+					pProp = pColorProp;
+				}
+				else if(_tcsicmp(pstrType, _T("SIZE")) == 0)
+				{
+					CMFCPropertyGridProperty* pSize = new CMFCPropertyGridProperty(pstrName, 0, TRUE);
+
+					LPTSTR pstr = NULL;
+					long nValue = _tcstol(pstrDefault, &pstr, 10);
+					pProp = new CMFCPropertyGridProperty(_T("高度"), COleVariant(), _T("指定高度"));
+					pProp->SetValue(COleVariant(nValue));
+					pProp->EnableSpinControl(TRUE);
+					pSize->AddSubItem(pProp);
+
+					nValue = _tcstol(pstr + 1, &pstr, 10);
+					pProp = new CMFCPropertyGridProperty( _T("宽度"), COleVariant(), _T("指定宽度"));
+					pProp->EnableSpinControl(TRUE);
+					pProp->SetValue(COleVariant(nValue));
+					pSize->AddSubItem(pProp);
+					pProp = pSize;
+				}
+				if (pProp)
+				{
+					m_wndPropList.AddProperty(pProp);
+					if (bModify)
+					{
+						if (pProp->IsModified())
+							AfxMessageBox(_T("Text"));
+					}
+				}
+			}
+			m_strCurCtrl = node.attribute(_T("parent")).value();
+		}
+		WaitForSingleObject(m_evtChangedCtrl, INFINITE);
+	}
+}
+
 int CPropertiesWnd::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
 	if (CDockablePane::OnCreate(lpCreateStruct) == -1)
@@ -70,17 +232,17 @@ int CPropertiesWnd::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	rectDummy.SetRectEmpty();
 
 	// 创建组合:
-	const DWORD dwViewStyle = WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_BORDER | CBS_SORT | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
-
-	if (!m_wndObjectCombo.Create(dwViewStyle, rectDummy, this, 1))
-	{
-		TRACE0("未能创建属性组合 \n");
-		return -1;      // 未能创建
-	}
-
-	m_wndObjectCombo.AddString(_T("应用程序"));
-	m_wndObjectCombo.AddString(_T("属性窗口"));
-	m_wndObjectCombo.SetCurSel(0);
+// 	const DWORD dwViewStyle = WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_BORDER | CBS_SORT | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+// 
+// 	if (!m_wndObjectCombo.Create(dwViewStyle, rectDummy, this, 1))
+// 	{
+// 		TRACE0("未能创建属性组合 \n");
+// 		return -1;      // 未能创建
+// 	}
+// 
+// 	m_wndObjectCombo.AddString(_T("应用程序"));
+// 	m_wndObjectCombo.AddString(_T("属性窗口"));
+// 	m_wndObjectCombo.SetCurSel(0);
 
 	if (!m_wndPropList.Create(WS_VISIBLE | WS_CHILD, rectDummy, this, 2))
 	{
@@ -88,7 +250,7 @@ int CPropertiesWnd::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		return -1;      // 未能创建
 	}
 
-	InitPropList();
+	m_wndPropList.SetAlphabeticMode(TRUE);
 
 	m_wndToolBar.Create(this, AFX_DEFAULT_TOOLBAR_STYLE, IDR_PROPERTIES);
 	m_wndToolBar.LoadToolBar(IDR_PROPERTIES, 0, 0, TRUE /* 已锁定*/);
@@ -151,93 +313,6 @@ void CPropertiesWnd::OnUpdateProperties2(CCmdUI* /*pCmdUI*/)
 	// TODO: 在此处添加命令更新 UI 处理程序代码
 }
 
-void CPropertiesWnd::InitPropList()
-{
-	SetPropListFont();
-
-	m_wndPropList.EnableHeaderCtrl(FALSE);
-	m_wndPropList.EnableDescriptionArea();
-	m_wndPropList.SetVSDotNetLook();
-	m_wndPropList.MarkModifiedProperties();
-
-	CMFCPropertyGridProperty* pGroup1 = new CMFCPropertyGridProperty(_T("外观"));
-
-	pGroup1->AddSubItem(new CMFCPropertyGridProperty(_T("三维外观"), (_variant_t) false, _T("指定窗口的字体不使用粗体，并且控件将使用三维边框")));
-
-	CMFCPropertyGridProperty* pProp = new CMFCPropertyGridProperty(_T("边框"), _T("对话框外框"), _T("其中之一:“无”、“细”、“可调整大小”或“对话框外框”"));
-	pProp->AddOption(_T("无"));
-	pProp->AddOption(_T("细"));
-	pProp->AddOption(_T("可调整大小"));
-	pProp->AddOption(_T("对话框外框"));
-	pProp->AllowEdit(FALSE);
-
-	pGroup1->AddSubItem(pProp);
-	pGroup1->AddSubItem(new CMFCPropertyGridProperty(_T("标题"), (_variant_t) _T("关于"), _T("指定窗口标题栏中显示的文本")));
-
-	m_wndPropList.AddProperty(pGroup1);
-
-	CMFCPropertyGridProperty* pSize = new CMFCPropertyGridProperty(_T("窗口大小"), 0, TRUE);
-
-	pProp = new CMFCPropertyGridProperty(_T("高度"), (_variant_t) 250l, _T("指定窗口的高度"));
-	pProp->EnableSpinControl(TRUE, 50, 300);
-	pSize->AddSubItem(pProp);
-
-	pProp = new CMFCPropertyGridProperty( _T("宽度"), (_variant_t) 150l, _T("指定窗口的宽度"));
-	pProp->EnableSpinControl(TRUE, 50, 200);
-	pSize->AddSubItem(pProp);
-
-	pProp = new CMFCPropertyGridProperty( _T("测试"), (_variant_t) 160l, _T("测试"));
-	pProp->EnableSpinControl(TRUE, 50, 200);
-	pSize->AddSubItem(pProp);
-
-	m_wndPropList.AddProperty(pSize);
-
-	CMFCPropertyGridProperty* pGroup2 = new CMFCPropertyGridProperty(_T("字体"));
-
-	LOGFONT lf;
-	CFont* font = CFont::FromHandle((HFONT) GetStockObject(DEFAULT_GUI_FONT));
-	font->GetLogFont(&lf);
-
-	lstrcpy(lf.lfFaceName, _T("宋体, Arial"));
-
-	pGroup2->AddSubItem(new CMFCPropertyGridFontProperty(_T("字体"), lf, CF_EFFECTS | CF_SCREENFONTS, _T("指定窗口的默认字体")));
-	pGroup2->AddSubItem(new CMFCPropertyGridProperty(_T("使用系统字体"), (_variant_t) true, _T("指定窗口使用“MS Shell Dlg”字体")));
-
-	m_wndPropList.AddProperty(pGroup2);
-
-	CMFCPropertyGridProperty* pGroup3 = new CMFCPropertyGridProperty(_T("杂项"));
-	pProp = new CMFCPropertyGridProperty(_T("(名称)"), _T("应用程序"));
-	pProp->Enable(FALSE);
-	pGroup3->AddSubItem(pProp);
-
-	CMFCPropertyGridColorProperty* pColorProp = new CMFCPropertyGridColorProperty(_T("窗口颜色"), RGB(210, 192, 254), NULL, _T("指定默认的窗口颜色"));
-	pColorProp->EnableOtherButton(_T("其他..."));
-	pColorProp->EnableAutomaticButton(_T("默认"), ::GetSysColor(COLOR_3DFACE));
-	pGroup3->AddSubItem(pColorProp);
-
-	static const TCHAR szFilter[] = _T("图标文件(*.ico)|*.ico|所有文件(*.*)|*.*||");
-	pGroup3->AddSubItem(new CMFCPropertyGridFileProperty(_T("图标"), TRUE, _T(""), _T("ico"), 0, szFilter, _T("指定窗口图标")));
-
-	pGroup3->AddSubItem(new CMFCPropertyGridFileProperty(_T("文件夹"), _T("c:\\")));
-
-	m_wndPropList.AddProperty(pGroup3);
-
-	CMFCPropertyGridProperty* pGroup4 = new CMFCPropertyGridProperty(_T("层次结构"));
-
-	CMFCPropertyGridProperty* pGroup41 = new CMFCPropertyGridProperty(_T("第一个子级"));
-	pGroup4->AddSubItem(pGroup41);
-
-	CMFCPropertyGridProperty* pGroup411 = new CMFCPropertyGridProperty(_T("第二个子级"));
-	pGroup41->AddSubItem(pGroup411);
-
-	pGroup411->AddSubItem(new CMFCPropertyGridProperty(_T("项 1"), (_variant_t) _T("值 1"), _T("此为说明")));
-	pGroup411->AddSubItem(new CMFCPropertyGridProperty(_T("项 2"), (_variant_t) _T("值 2"), _T("此为说明")));
-	pGroup411->AddSubItem(new CMFCPropertyGridProperty(_T("项 3"), (_variant_t) _T("值 3"), _T("此为说明")));
-
-	pGroup4->Expand(FALSE);
-	m_wndPropList.AddProperty(pGroup4);
-}
-
 void CPropertiesWnd::OnSetFocus(CWnd* pOldWnd)
 {
 	CDockablePane::OnSetFocus(pOldWnd);
@@ -270,4 +345,141 @@ void CPropertiesWnd::SetPropListFont()
 
 	m_wndPropList.SetFont(&m_fntPropList);
 	m_wndObjectCombo.SetFont(&m_fntPropList);
+}
+
+
+bool IsSpace(TCHAR c)
+{
+	if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\t')
+	{
+		return true;
+	}
+	return false;
+}
+
+LPCTSTR SkipSpace(LPCTSTR lpsz)
+{
+	while (*lpsz && IsSpace(*lpsz))
+	{
+		lpsz = CharNext(lpsz);
+	}
+	return lpsz;
+}
+
+bool IsValueTokenChar(TCHAR c)
+{
+	if (c >= '0' && c <= '9')
+	{
+		return true;
+	}
+	if (c >= 'A' && c <= 'Z')
+	{
+		return true;
+	}
+	if (c >= 'a' && c <= 'z')
+	{
+		return true;
+	}
+	if (c == '_' || c == '-')
+	{
+		return true;
+	}
+	return false;
+}
+
+void CPropertiesWnd::ParseCurAttrs(CMapStringToString& mapAttrs)
+{
+	mapAttrs.RemoveAll();
+	CString str(m_strCurAttrs);//复制一份，防止m_strCurAttrs被修改
+	LPCTSTR p = (LPCTSTR)str;
+	while (*p)
+	{
+		p = SkipSpace(p);
+		bool bKey = true;
+		CString strKey;
+		CString strValue;
+
+		while (IsValueTokenChar(*p))
+		{
+			strKey += *p;
+			p++;
+		}
+		p = SkipSpace(p);
+		if (*p != '=')
+		{
+			return;//不合法
+		}
+		p++;
+		p = SkipSpace(p);
+		if (*p != '\"')
+		{
+			return;//不合法
+		}
+		p++;
+		while (*p != '\"')
+		{
+			strValue += *p;
+			p++;
+		}
+		p++;
+		strKey.MakeLower();
+		mapAttrs[strKey] = strValue;
+	}
+}
+
+CMFCPropertyGridColor32Property::CMFCPropertyGridColor32Property(const CString& strName, const COLORREF& color,CPalette* pPalette/*=NULL*/,LPCTSTR lpszDescr/*=NULL*/,DWORD_PTR dwData/*=0*/)
+	:CMFCPropertyGridColorProperty(strName,color,pPalette,lpszDescr,dwData)
+{
+}
+
+BOOL CMFCPropertyGridColor32Property::OnUpdateValue()
+{
+	ASSERT_VALID(this);
+
+	if (m_pWndInPlace == NULL)
+	{
+		return FALSE;
+	}
+
+	ASSERT_VALID(m_pWndInPlace);
+	ASSERT(::IsWindow(m_pWndInPlace->GetSafeHwnd()));
+
+	CString strText;
+	m_pWndInPlace->GetWindowText(strText);
+
+	COLORREF colorCurr = m_Color;
+	int nA = 0,nR = 0, nG = 0, nB = 0;
+	_stscanf_s(strText, _T("%2X%2X%2X%2X"), &nA, &nR, &nG, &nB);
+	if(nA == 0 && (nR !=0 || nG != 0 || nB !=  0))
+		nA = 0xFF;
+	m_Color = ARGB(nA, nR, nG, nB);
+
+	if (colorCurr != m_Color)
+	{
+		m_pWndList->OnPropertyChanged(this);
+	}
+
+	return TRUE;
+}
+
+void CMFCPropertyGridColor32Property::OnDrawValue(CDC* pDC, CRect rect)
+{
+	CRect rectColor(rect);
+	Gdiplus::Graphics g(pDC->GetSafeHdc());
+	rect.left += rect.Height();
+	CMFCPropertyGridProperty::OnDrawValue(pDC, rect);
+
+	Gdiplus::Rect rc(rectColor.left, rectColor.top, rectColor.Height(), rectColor.Height());
+	Gdiplus::SolidBrush brush(Gdiplus::Color((LOBYTE((m_Color)>>24)), GetBValue(m_Color), GetGValue(m_Color), GetRValue(m_Color)));
+	g.FillRectangle(&brush, rc);
+}
+
+CString CMFCPropertyGridColor32Property::FormatProperty()
+{
+	ASSERT_VALID(this);
+
+	CString str;
+	str.Format(_T("%02X%02X%02X%02X"),GetAValue(m_Color),GetRValue(m_Color),GetGValue(m_Color),GetBValue(m_Color));
+
+	return str;
 }

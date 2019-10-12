@@ -581,7 +581,7 @@ XmlMatchedTagsHighlighter::FindResult XmlMatchedTagsHighlighter::findText(const 
 	return returnValue;
 }
 
-void XmlMatchedTagsHighlighter::tagMatch(bool doHiliteAttr) 
+XmlMatchedTagsHighlighter::XmlMatchedTagsPos XmlMatchedTagsHighlighter::tagMatch(bool doHiliteAttr) 
 {
 	// Clean up all marks of previous action
 	int docStart = 0;
@@ -594,7 +594,7 @@ void XmlMatchedTagsHighlighter::tagMatch(bool doHiliteAttr)
 	int originalEndPos = _pEditView->execute(SCI_GETTARGETEND);
 	int originalSearchFlags = _pEditView->execute(SCI_GETSEARCHFLAGS);
 
-	XmlMatchedTagsPos xmlTags;
+	XmlMatchedTagsPos xmlTags = {0};
 
     // Detect if it's a xml/html tag. If yes, Colour it!
 	if (getXmlMatchedTagsPos(xmlTags))
@@ -647,4 +647,5 @@ void XmlMatchedTagsHighlighter::tagMatch(bool doHiliteAttr)
 	_pEditView->execute(SCI_SETTARGETSTART, originalStartPos);
 	_pEditView->execute(SCI_SETTARGETEND, originalEndPos);
 	_pEditView->execute(SCI_SETSEARCHFLAGS, originalSearchFlags);
+	return xmlTags;
 }

@@ -37,11 +37,6 @@ class CSciWnd;
 class XmlMatchedTagsHighlighter {
 public:
 	XmlMatchedTagsHighlighter(CSciWnd *pEditView):_pEditView(pEditView){};
-	void tagMatch(bool doHiliteAttr);
-	
-private:
-	CSciWnd *_pEditView;
-	
 	struct XmlMatchedTagsPos {
 		int tagOpenStart;
 		int tagNameEnd;
@@ -50,6 +45,11 @@ private:
 		int tagCloseStart;
 		int tagCloseEnd;
 	};
+	XmlMatchedTagsPos tagMatch(bool doHiliteAttr);
+
+private:
+	CSciWnd *_pEditView;
+	
 
 	struct FindResult {
 		int start;

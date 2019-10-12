@@ -11,7 +11,6 @@
 
 #include "DuilibSkinEditorDoc.h"
 #include "DuilibSkinEditorView.h"
-#include "xmlMatchedTagsHighlighter.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -53,7 +52,7 @@ END_MESSAGE_MAP()
 
 CDuilibSkinEditorView::CDuilibSkinEditorView()
 {
-	// TODO: 在此处添加构造代码
+	ZeroMemory(&m_posTagLastSel, sizeof(m_posTagLastSel));
 }
 
 CDuilibSkinEditorView::~CDuilibSkinEditorView()
@@ -898,7 +897,18 @@ BOOL CDuilibSkinEditorView::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pRes
 		{
 			braceMatch();
 			XmlMatchedTagsHighlighter xmlTagMatchHiliter(&m_sci);
-			xmlTagMatchHiliter.tagMatch(false);
+			XmlMatchedTagsHighlighter::XmlMatchedTagsPos posTag = xmlTagMatchHiliter.tagMatch(false);
+			if (posTag.tagOpenStart && posTag.tagNameEnd &&
+				m_posTagLastSel.tagOpenStart != posTag.tagOpenStart && m_posTagLastSel.tagNameEnd != posTag.tagNameEnd)
+			{
+				m_posTagLastSel = posTag;
+				CStringA strName;
+				m_sci.sci_GetTextRange(posTag.tagOpenStart + 1, posTag.tagNameEnd, strName);
+				strName.TrimLeft();
+				CStringA strAttrs;
+				m_sci.sci_GetTextRange(posTag.tagNameEnd, posTag.tagOpenEnd - 1, strAttrs);
+				theApp.GetMainWnd()->SendMessage(WM_REFRESH_PROPERTY, (WPARAM)(LPCTSTR)CString(strName), (LPARAM)(LPCTSTR)CString(strAttrs));			
+			}
 		}
 		break;
 	default:

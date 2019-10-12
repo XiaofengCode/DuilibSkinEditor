@@ -35,6 +35,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CMDIFrameWndEx)
 	ON_COMMAND(ID_TOOLS_OPTIONS, &CMainFrame::OnOptions)
 	ON_WM_SETTINGCHANGE()
 	ON_MESSAGE(WM_REFRESH_PREVIEW, &CMainFrame::OnRefreshPreview)
+	ON_MESSAGE(WM_REFRESH_PROPERTY, &CMainFrame::OnRefreshProperty)
 END_MESSAGE_MAP()
 
 static UINT indicators[] =
@@ -227,14 +228,14 @@ BOOL CMainFrame::CreateDockingWindows()
 // 	}
 
 	// 创建属性窗口
-// 	CString strPropertiesWnd;
-// 	bNameValid = strPropertiesWnd.LoadString(IDS_PROPERTIES_WND);
-// 	ASSERT(bNameValid);
-// 	if (!m_wndProperties.Create(strPropertiesWnd, this, CRect(0, 0, 200, 200), TRUE, ID_VIEW_PROPERTIESWND, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CBRS_RIGHT | CBRS_FLOAT_MULTI))
-// 	{
-// 		TRACE0("未能创建“属性”窗口\n");
-// 		return FALSE; // 未能创建
-// 	}
+	CString strPropertiesWnd;
+	bNameValid = strPropertiesWnd.LoadString(IDS_PROPERTIES_WND);
+	ASSERT(bNameValid);
+	if (!m_wndProperties.Create(strPropertiesWnd, this, CRect(0, 0, 200, 200), TRUE, ID_VIEW_PROPERTIESWND, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | CBRS_RIGHT | CBRS_FLOAT_MULTI))
+	{
+		TRACE0("未能创建“属性”窗口\n");
+		return FALSE; // 未能创建
+	}
 
 	// 创建预览窗口
 	CString strPreviewWnd;
@@ -516,5 +517,11 @@ void CMainFrame::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
 afx_msg LRESULT CMainFrame::OnRefreshPreview(WPARAM wParam, LPARAM lParam)
 {
 	m_wndPreView.Refresh();
+	return 0;
+}
+
+LRESULT CMainFrame::OnRefreshProperty(WPARAM wParam, LPARAM lParam)
+{
+	m_wndProperties.ShowProperty((LPCTSTR)wParam, (LPCTSTR)lParam);
 	return 0;
 }
