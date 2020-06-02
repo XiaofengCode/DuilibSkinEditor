@@ -86,6 +86,14 @@ BOOL CDuilibSkinEditorDoc::OnNewDocument()
 
 
 
+BOOL CDuilibSkinEditorDoc::OnOpenDocument(LPCTSTR lpszPathName)
+{
+	if (!CDocument::OnOpenDocument(lpszPathName))
+		return FALSE;
+	//如果是第一个，则关闭默认打开的那个
+	return TRUE;
+}
+
 // CDuilibSkinEditorDoc 序列化
 
 void CDuilibSkinEditorDoc::Serialize(CArchive& ar)

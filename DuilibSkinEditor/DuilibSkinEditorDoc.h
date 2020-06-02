@@ -21,6 +21,7 @@ public:
 // ÖØÐ´
 public:
 	virtual BOOL OnNewDocument();
+	virtual BOOL OnOpenDocument(LPCTSTR lpszPathName);
 	virtual void Serialize(CArchive& ar);
 	virtual void OnDocumentEvent(DocumentEvent deEvent);
 #ifdef SHARED_HANDLERS
